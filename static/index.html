@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Beehive Monitor Dashboard</title>
+
+  <!-- 1) Load Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- 2) Load a date adapter for time-scale support in Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    #chartContainer {
+      width: 800px;
+      max-width: 100%;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Beehive Monitor Dashboard</h1>
+
+  <!-- Dropdowns for device (MAC) and measurement -->
+  <div>
+    <label for="macSelect">Select Device (MAC):</label>
+    <select id="macSelect">
+      <option value="">--Loading Devices--</option>
+    </select>
+
+    <label for="measurementSelect">Select Measurement:</label>
+    <select id="measurementSelect">
+      <option value="">--Pick a Device First--</option>
+    </select>
+
+    <!-- Button to load the chart data -->
+    <button id="loadChartBtn">Load Chart</button>
+  </div>
+
+  <!-- Chart canvas -->
+  <div id="chartContainer">
+    <canvas id="myChart"></canvas>
+  </div>
+
+  <script>
+    let myChart = null;
+
+    // ===============================
+    // 1) Populate the MAC dropdown
+    // ===============================
+    async function loadMacs() {
+      try {
+        const resp = await fetch("/api/devices");
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        const macs = await resp.json();
+
+        const macSelect = document.getElementById("macSelect");
+        macSelect.innerHTML = ""; // Clear existing
+
+        // Add a default option
+        const defaultOpt = document.createElement("option");
+        defaultOpt.value = "";
+        defaultOpt.textContent = "--Select MAC--";
+        macSelect.appendChild(defaultOpt);
+
+        // Populate with actual MAC addresses
+        macs.forEach(mac => {
+          const opt = document.createElement("option");
+          opt.value = mac;
+          opt.textContent = mac;
+          macSelect.appendChild(opt);
+        });
+
+      } catch (err) {
+        console.error("Failed to load MACs:", err);
+      }
+    }
+
+    // =======================================
+    // 2) Load measurements for chosen MAC
+    // =======================================
+    document.getElementById("macSelect").addEventListener("change", async (e) => {
+      const selectedMac = e.target.value;
+      const measurementSelect = document.getElementById("measurementSelect");
+      measurementSelect.innerHTML = "";
+
+      if (!selectedMac) {
+        // No MAC selected: just reset measurement dropdown
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "--Pick a Device First--";
+        measurementSelect.appendChild(opt);
+        return;
+      }
+
+      // Fetch the measurements for this MAC
+      try {
+        const resp = await fetch(`/api/measurements/${selectedMac}`);
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        const measurements = await resp.json();
+
+        const defaultOpt = document.createElement("option");
+        defaultOpt.value = "";
+        defaultOpt.textContent = "--Select Measurement--";
+        measurementSelect.appendChild(defaultOpt);
+
+        measurements.forEach(m => {
+          const opt = document.createElement("option");
+          opt.value = m;
+          opt.textContent = m;
+          measurementSelect.appendChild(opt);
+        });
+
+      } catch (err) {
+        console.error("Failed to load measurements:", err);
+      }
+    });
+
+    // ===================================================
+    // 3) Load Chart data for the chosen MAC & Measurement
+    // ===================================================
+    document.getElementById("loadChartBtn").addEventListener("click", async () => {
+      const macSelect = document.getElementById("macSelect");
+      const measurementSelect = document.getElementById("measurementSelect");
+
+      const mac = macSelect.value.trim();
+      const measurement = measurementSelect.value.trim();
+
+      if (!mac || !measurement) {
+        alert("Please select a MAC and a measurement");
+        return;
+      }
+
+      try {
+        // Fetch the last N points for that (MAC, measurement)
+        const url = `/api/history/${mac}/${measurement}`;
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+
+        const data = await resp.json();
+        // data = { timestamps: [...], values: [...] }
+
+        // Convert string timestamps to Date objects
+        // If your timestamps are "YYYY-MM-DD HH:mm:ss", 
+        // you might append "Z" to interpret them as UTC or handle local time:
+        const xLabels = data.timestamps.map(ts => new Date(ts+"Z"));
+    
+
+
+        const yValues = data.values;
+
+        // Build the chart config
+        const chartConfig = {
+          type: 'line',
+          data: {
+            labels: xLabels,
+            datasets: [{
+              label: `${mac} - ${measurement}`,
+              data: yValues,
+              borderColor: 'blue',
+              fill: false
+            }]
+          },
+          options: {
+            scales: {
+              x: {
+                type: 'time',
+                time: {
+                  // ...
+                },
+                adapters: {
+                  date: {
+                    zone: 'America/New_York'  // or your desired zone
+                  }
+                }
+              }
+            }
+          }
+          
+        };
+
+        // Destroy old chart if any
+        if (myChart) {
+          myChart.destroy();
+        }
+
+        // Create new chart
+        const ctx = document.getElementById("myChart").getContext("2d");
+        myChart = new Chart(ctx, chartConfig);
+
+      } catch (err) {
+        console.error("Error fetching chart data:", err);
+        alert("Error loading chart data. Check console for details.");
+      }
+    });
+
+    // On page load, populate the MAC dropdown
+    loadMacs();
+  </script>
+
+</body>
+</html>

@@ -264,13 +264,14 @@
     });
 }
 
-
 function loadDataTable() {
   $('#dataTable').DataTable().destroy();
   $('#dataTable').DataTable({
     ajax: {
       url: "/api/all_data",
+      dataType: "json",
       dataSrc: function(json) {
+        console.log("API Response:", json); // Debug: Check API output
         if (!Array.isArray(json)) {
           console.error("DataTables error: API response is not an array", json);
           return [];
@@ -283,24 +284,23 @@ function loadDataTable() {
     },
     columns: [
       { data: "timestamp", render: function(data) {
-          if (!data) return "N/A"; // Prevent undefined errors
-          return luxon.DateTime.fromISO(data, { zone: "utc" })
+          return data ? luxon.DateTime.fromISO(data, { zone: "utc" })
             .setZone(luxon.DateTime.local().zoneName)
-            .toFormat("yyyy-MM-dd HH:mm");
+            .toFormat("yyyy-MM-dd HH:mm") : "N/A";
         }
       },
       { data: "mac_address" },
       { data: "measurement" },
       { data: "value", render: function(data) {
-          return data !== null ? data : "N/A"; // Handle null values
+          return data !== null ? data : "N/A";
         }
       }
     ],
-    order: [[0, "desc"]],  // Sort by latest timestamp first
+    order: [[0, "desc"]],
+    processing: true,
     destroy: true
   });
 }
-
 
     document.addEventListener("DOMContentLoaded", function() {
       loadDevices();

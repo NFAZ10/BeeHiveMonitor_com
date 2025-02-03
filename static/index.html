@@ -270,11 +270,20 @@ function loadDataTable() {
   $('#dataTable').DataTable({
     ajax: {
       url: "/api/all_data",
-      dataSrc: ""
+      dataSrc: function(json) {
+        if (!Array.isArray(json)) {
+          console.error("DataTables error: API response is not an array", json);
+          return [];
+        }
+        return json;
+      },
+      error: function(xhr, status, error) {
+        console.error("DataTables AJAX Error:", error, xhr.responseText);
+      }
     },
     columns: [
       { data: "timestamp", render: function(data) {
-          // Convert timestamp from UTC to Local Time
+          if (!data) return "N/A"; // Prevent undefined errors
           return luxon.DateTime.fromISO(data, { zone: "utc" })
             .setZone(luxon.DateTime.local().zoneName)
             .toFormat("yyyy-MM-dd HH:mm");
@@ -282,14 +291,15 @@ function loadDataTable() {
       },
       { data: "mac_address" },
       { data: "measurement" },
-      { data: "value" }
+      { data: "value", render: function(data) {
+          return data !== null ? data : "N/A"; // Handle null values
+        }
+      }
     ],
     order: [[0, "desc"]],  // Sort by latest timestamp first
     destroy: true
   });
 }
-
-
 
 
     document.addEventListener("DOMContentLoaded", function() {

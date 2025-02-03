@@ -212,9 +212,9 @@
     .then(data => {
       if (myChart) myChart.destroy();
 
-      // Convert timestamps from UTC to local time as real Date objects
+      // Convert timestamps from UTC to local time
       const xLabels = data.timestamps.map(ts =>
-        luxon.DateTime.fromISO(ts, { zone: "utc" }).toLocal().toJSDate()
+        luxon.DateTime.fromISO(ts, { zone: "utc" }).toLocal().toJSDate() // Convert to local Date object
       );
 
       myChart = new Chart(document.getElementById("myChart"), {
@@ -235,14 +235,21 @@
               type: 'time',
               time: {
                 tooltipFormat: "yyyy-MM-dd HH:mm",
+                unit: "hour",
                 displayFormats: {
-                  hour: 'HH:mm',
-                  day: 'yyyy-MM-dd'
+                  hour: "HH:mm",
+                  day: "yyyy-MM-dd"
                 }
               },
               title: {
                 display: true,
                 text: "Timestamp (Local Time)"
+              },
+              ticks: {
+                source: "auto",
+                callback: function(value, index, values) {
+                  return luxon.DateTime.fromJSDate(new Date(value)).toFormat("HH:mm");
+                }
               }
             },
             y: {
@@ -256,8 +263,7 @@
       });
     });
 }
-
-
+   
 function loadDataTable() {
   $('#dataTable').DataTable().destroy();
   $('#dataTable').DataTable({

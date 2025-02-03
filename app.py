@@ -1,12 +1,15 @@
 import threading
 import paho.mqtt.client as mqtt
 import sqlite3
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, send_from_directory, request
 
 app = Flask(__name__, static_folder="static")
 
 DB_PATH = "beehive.db"
 
+# ============================
+# 🔹 Initialize Database
+# ============================
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -22,6 +25,9 @@ def init_db():
     conn.commit()
     conn.close()
 
+# ============================
+# 🔹 Insert Sensor Readings
+# ============================
 def insert_reading(mac_address, measurement, value):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -32,6 +38,9 @@ def insert_reading(mac_address, measurement, value):
     conn.commit()
     conn.close()
 
+# ============================
+# 🔹 MQTT Handler
+# ============================
 def on_mqtt_message(client, userdata, msg):
     topic_parts = msg.topic.split("/")
     if len(topic_parts) < 4:
@@ -57,64 +66,77 @@ def run_mqtt_client():
     mqtt_client.subscribe("beehive/data/+/+")  # all devices/measurements
     mqtt_client.loop_forever()
 
+# ============================
+# 🔹 API Endpoints
+# ============================
 @app.route("/api/devices")
 def api_devices():
-    """
-    Return a list of distinct MAC addresses.
-    """
+    """Return a list of distinct MAC addresses."""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT DISTINCT mac_address FROM sensor_data ORDER BY mac_address;")
     rows = c.fetchall()
     conn.close()
-
-    # rows is a list of tuples like [(mac1,), (mac2,), ...]
-    macs = [r[0] for r in rows]
-    return jsonify(macs)
+    return jsonify([r[0] for r in rows])
 
 @app.route("/api/measurements/<mac>")
 def api_measurements(mac):
-    """
-    Return a list of distinct measurements for the given MAC address.
-    """
+    """Return a list of distinct measurements for the given MAC address."""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("""
-        SELECT DISTINCT measurement 
-        FROM sensor_data
-        WHERE mac_address = ?
-        ORDER BY measurement;
-    """, (mac,))
+    c.execute("SELECT DISTINCT measurement FROM sensor_data WHERE mac_address = ? ORDER BY measurement;", (mac,))
     rows = c.fetchall()
     conn.close()
-
-    measurements = [r[0] for r in rows]
-    return jsonify(measurements)
+    return jsonify([r[0] for r in rows])
 
 @app.route("/api/history/<mac>/<measurement>")
 def api_history(mac, measurement):
     """
     Return the last 50 readings for (mac, measurement).
-    Returns { "timestamps": [...], "values": [...] } to plot in Chart.js.
+    Supports optional start & end date filtering.
     """
+    start_date = request.args.get("start")
+    end_date = request.args.get("end")
+
+    query = """
+        SELECT timestamp, value FROM sensor_data
+        WHERE mac_address = ? AND measurement = ?
+    """
+    params = [mac, measurement]
+
+    if start_date and end_date:
+        query += " AND timestamp BETWEEN ? AND ?"
+        params.extend([start_date, end_date])
+
+    query += " ORDER BY timestamp DESC LIMIT 50;"
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("""
-        SELECT timestamp, value
-        FROM sensor_data
-        WHERE mac_address = ? AND measurement = ?
-        ORDER BY id DESC
-        LIMIT 50;
-    """, (mac, measurement))
+    c.execute(query, params)
     rows = c.fetchall()
     conn.close()
 
-    # rows -> [(timestamp_str, value), ...], newest first
-    rows.reverse()  # so oldest is first
+    rows.reverse()  # Ensure oldest first
 
-    timestamps = [r[0] for r in rows]
-    values = [r[1] for r in rows]
-    return jsonify({"timestamps": timestamps, "values": values})
+    return jsonify({
+        "timestamps": [r[0] for r in rows],
+        "values": [r[1] for r in rows]
+    })
+
+# ============================
+# 🔹 NEW: API for Full Data Table
+# ============================
+@app.route("/api/all_data")
+def api_all_data():
+    """Return all sensor data for the table view."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row  # Return rows as dictionaries
+    c = conn.cursor()
+    c.execute("SELECT timestamp, mac_address, measurement, value FROM sensor_data ORDER BY timestamp DESC LIMIT 500;")
+    rows = c.fetchall()
+    conn.close()
+
+    return jsonify([dict(row) for row in rows])
 
 @app.route("/")
 def index():

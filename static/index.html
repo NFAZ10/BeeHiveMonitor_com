@@ -211,25 +211,12 @@
         .then(res => res.json())
         .then(data => {
           if (myChart) myChart.destroy();
-
-
-      // Convert UTC timestamps to local time using Luxon
-      const xLabels = data.timestamps.map(ts => 
-        luxon.DateTime.fromISO(ts, { zone: "utc" }).toLocal().toJSDate()
-      );
-
           myChart = new Chart(document.getElementById("myChart"), {
             type: 'line',
             data: {
               labels: data.timestamps,
-              datasets: [{
-                 label: measurement, 
-                 data: data.values, 
-                 borderColor: '#007BFF', 
-                 fill: false
-                 }]
+              datasets: [{ label: measurement, data: data.values, borderColor: '#007BFF', fill: false }]
             }
-            
           });
         });
     }

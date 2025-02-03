@@ -116,6 +116,18 @@ def api_history(mac, measurement):
     values = [r[1] for r in rows]
     return jsonify({"timestamps": timestamps, "values": values})
 
+@app.route("/api/all_data")
+def api_all_data():
+    """Return all sensor data for the table view."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row  # This allows dictionary-like access to rows
+    c = conn.cursor()
+    c.execute("SELECT timestamp, mac_address, measurement, value FROM sensor_data ORDER BY timestamp DESC LIMIT 500;")
+    rows = c.fetchall()
+    conn.close()
+
+    return jsonify([dict(row) for row in rows])
+
 @app.route("/")
 def index():
     return send_from_directory(app.static_folder, "index.html")

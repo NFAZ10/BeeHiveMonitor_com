@@ -206,6 +206,8 @@
       const measurement = document.getElementById("measurementSelect").value;
       const start = document.getElementById("startDate").value;
       const end = document.getElementById("endDate").value;
+      const xLabels = data.timestamps.map(ts => 
+        luxon.DateTime.fromISO(ts, { zone: "utc" }).toLocal().toJSDate()
 
       fetch(`/api/history/${mac}/${measurement}?start=${start}&end=${end}`)
         .then(res => res.json())

@@ -206,12 +206,13 @@
       const measurement = document.getElementById("measurementSelect").value;
       const start = document.getElementById("startDate").value;
       const end = document.getElementById("endDate").value;
-      const xLabels = data.timestamps.map(ts => 
-        luxon.DateTime.fromISO(ts, { zone: "utc" }).toLocal().toJSDate()
-
+c
       fetch(`/api/history/${mac}/${measurement}?start=${start}&end=${end}`)
         .then(res => res.json())
         .then(data => {
+          const xLabels = data.timestamps.map(ts => 
+        luxon.DateTime.fromISO(ts, { zone: "utc" }).toLocal().toJSDate()
+
           if (myChart) myChart.destroy();
           myChart = new Chart(document.getElementById("myChart"), {
             type: 'line',

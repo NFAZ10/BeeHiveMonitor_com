@@ -212,9 +212,9 @@
     .then(data => {
       if (myChart) myChart.destroy();
 
-      // Convert timestamps from UTC to local time
-      const xLabels = data.timestamps.map(ts =>
-        luxon.DateTime.fromISO(ts, { zone: "utc" }).toLocal().toJSDate() // Convert to local Date object
+      // Convert timestamps from UTC to local Date objects
+      const xLabels = data.timestamps.map(ts => 
+        luxon.DateTime.fromISO(ts, { zone: "utc" }).setZone(luxon.DateTime.local().zoneName).toJSDate()
       );
 
       myChart = new Chart(document.getElementById("myChart"), {
@@ -263,7 +263,8 @@
       });
     });
 }
-   
+
+
 function loadDataTable() {
   $('#dataTable').DataTable().destroy();
   $('#dataTable').DataTable({
@@ -273,8 +274,10 @@ function loadDataTable() {
     },
     columns: [
       { data: "timestamp", render: function(data) {
-          // Convert timestamp from UTC to local time
-          return luxon.DateTime.fromISO(data, { zone: "utc" }).toLocal().toFormat("yyyy-MM-dd HH:mm");
+          // Convert timestamp from UTC to Local Time
+          return luxon.DateTime.fromISO(data, { zone: "utc" })
+            .setZone(luxon.DateTime.local().zoneName)
+            .toFormat("yyyy-MM-dd HH:mm");
         }
       },
       { data: "mac_address" },
@@ -285,7 +288,6 @@ function loadDataTable() {
     destroy: true
   });
 }
-
 
 
 

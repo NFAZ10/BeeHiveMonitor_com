@@ -131,21 +131,20 @@ def api_all_data():
 @app.route("/api/all_data")
 def api_all_data():
     """Return all sensor data for the data table view."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute("SELECT timestamp, mac_address, measurement, value FROM sensor_data ORDER BY timestamp DESC LIMIT 500;")
-    rows = c.fetchall()
-    conn.close()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row  # Ensures data is structured correctly
+        c = conn.cursor()
+        c.execute("SELECT timestamp, mac_address, measurement, value FROM sensor_data ORDER BY timestamp DESC LIMIT 500;")
+        rows = c.fetchall()
+        conn.close()
 
-    # Convert SQLite rows to dictionaries, handling null values
-    data = [
-        {
-            "timestamp": row["timestamp"] if row["timestamp"] else "N/A",
-            "mac_address": row["mac_address"] if row["mac_address"] else "Unknown",
-            "measurement": row["measurement"] if row["measurement"] else "Unknown",
-            "value": row["value"] if row["value"] is not None else "N/A"
-        }
-        for row in rows
-    ]
-    return jsonify(data)
+        # Convert to JSON format, ensuring it's always an array
+        data = [dict(row) for row in rows]
+        print("API returning:", data[:5])  # Debug: Print first 5 records
+
+        return jsonify(data)
+
+    except Exception as e:
+        print("Error in /api/all_data:", str(e))  # Print error to Flask logs
+        return jsonify({"error": "Internal Server Error", "details": str(e)}), 500

@@ -202,24 +202,62 @@
     }
 
     function loadChart() {
-      const mac = document.getElementById("macSelect").value;
-      const measurement = document.getElementById("measurementSelect").value;
-      const start = document.getElementById("startDate").value;
-      const end = document.getElementById("endDate").value;
+  const mac = document.getElementById("macSelect").value;
+  const measurement = document.getElementById("measurementSelect").value;
+  const start = document.getElementById("startDate").value;
+  const end = document.getElementById("endDate").value;
 
-      fetch(`/api/history/${mac}/${measurement}?start=${start}&end=${end}`)
-        .then(res => res.json())
-        .then(data => {
-          if (myChart) myChart.destroy();
-          myChart = new Chart(document.getElementById("myChart"), {
-            type: 'line',
-            data: {
-              labels: data.timestamps,
-              datasets: [{ label: measurement, data: data.values, borderColor: '#007BFF', fill: false }]
+  fetch(`/api/history/${mac}/${measurement}?start=${start}&end=${end}`)
+    .then(res => res.json())
+    .then(data => {
+      if (myChart) myChart.destroy();
+
+      // Convert UTC timestamps to local time using Luxon
+      const xLabels = data.timestamps.map(ts => 
+        luxon.DateTime.fromISO(ts, { zone: "utc" }).toLocal().toJSDate()
+      );
+
+      myChart = new Chart(document.getElementById("myChart"), {
+        type: 'line',
+        data: {
+          labels: xLabels,
+          datasets: [{
+            label: measurement,
+            data: data.values,
+            borderColor: '#007BFF',
+            fill: false
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                unit: 'hour', // Adjusts to show hourly data points
+                tooltipFormat: "yyyy-MM-dd HH:mm", // Formats hover tooltips
+                displayFormats: {
+                  hour: 'yyyy-MM-dd HH:mm',
+                  day: 'yyyy-MM-dd'
+                }
+              },
+              title: {
+                display: true,
+                text: "Timestamp (Local Time)"
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: measurement
+              }
             }
-          });
-        });
-    }
+          }
+        }
+      });
+    });
+}
+
 
     function loadDataTable() {
       $('#dataTable').DataTable().destroy();

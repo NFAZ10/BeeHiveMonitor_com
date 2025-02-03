@@ -19,40 +19,59 @@
     canvas { max-width: 100%; }
     button { padding: 10px; margin: 10px; }
     table { width: 100%; }
+    .hidden { display: none; }
   </style>
 </head>
 <body>
 
   <h1>Beehive Monitor Dashboard</h1>
 
-  <!-- Dropdowns & Date Inputs -->
-  <div>
-    <select id="macSelect"></select>
-    <select id="measurementSelect"></select>
-    <input type="date" id="startDate">
-    <input type="date" id="endDate">
-    <button onclick="loadChart()">Load Chart</button>
+  <!-- Navigation -->
+  <button onclick="showSection('chartContainer')">Chart View</button>
+  <button onclick="showSection('dataTableContainer')">Data Table</button>
+
+  <!-- Chart Section -->
+  <div id="chartContainer" class="container">
+    <h2>Sensor Data Chart</h2>
+    <div>
+      <select id="macSelect"></select>
+      <select id="measurementSelect"></select>
+      <input type="date" id="startDate">
+      <input type="date" id="endDate">
+      <button onclick="loadChart()">Load Chart</button>
+    </div>
+    <canvas id="myChart"></canvas>
   </div>
 
-  <!-- Chart -->
-  <canvas id="myChart"></canvas>
-
-  <!-- Data Table -->
-  <h2>All Sensor Data</h2>
-  <table id="dataTable">
-    <thead>
-      <tr><th>Timestamp</th><th>Device</th><th>Measurement</th><th>Value</th></tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+  <!-- Data Table Section -->
+  <div id="dataTableContainer" class="container hidden">
+    <h2>All Sensor Data</h2>
+    <table id="dataTable">
+      <thead>
+        <tr><th>Timestamp</th><th>Device</th><th>Measurement</th><th>Value</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
   <script>
     let myChart;
+
+    // Switch between Chart & Data Table views
+    function showSection(section) {
+      document.getElementById("chartContainer").classList.toggle("hidden", section !== "chartContainer");
+      document.getElementById("dataTableContainer").classList.toggle("hidden", section !== "dataTableContainer");
+
+      if (section === "dataTableContainer") {
+        loadDataTable();
+      }
+    }
 
     function loadDevices() {
       fetch("/api/devices").then(res => res.json()).then(data => {
         const select = document.getElementById("macSelect");
         select.innerHTML = data.map(mac => `<option value="${mac}">${mac}</option>`).join("");
+        loadMeasurements();
       });
     }
 
@@ -76,20 +95,31 @@
           if (myChart) myChart.destroy();
           myChart = new Chart(document.getElementById("myChart"), {
             type: 'line',
-            data: { labels: data.timestamps, datasets: [{ label: measurement, data: data.values }] }
+            data: {
+              labels: data.timestamps,
+              datasets: [{ label: measurement, data: data.values, borderColor: 'blue', fill: false }]
+            }
           });
         });
     }
 
-    $(document).ready(function() {
+    function loadDataTable() {
+      $('#dataTable').DataTable().destroy();
       $('#dataTable').DataTable({
         ajax: "/api/all_data",
-        columns: [{ data: "timestamp" }, { data: "mac_address" }, { data: "measurement" }, { data: "value" }]
+        columns: [
+          { data: "timestamp" },
+          { data: "mac_address" },
+          { data: "measurement" },
+          { data: "value" }
+        ]
       });
-    });
+    }
 
-    loadDevices();
-    document.getElementById("macSelect").addEventListener("change", loadMeasurements);
+    document.addEventListener("DOMContentLoaded", function() {
+      loadDevices();
+      document.getElementById("macSelect").addEventListener("change", loadMeasurements);
+    });
   </script>
 
 </body>

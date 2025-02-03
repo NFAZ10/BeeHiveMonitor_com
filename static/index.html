@@ -212,9 +212,9 @@
     .then(data => {
       if (myChart) myChart.destroy();
 
-      // Convert UTC timestamps to local time using Luxon
+      // Convert timestamps from UTC to local time as real Date objects
       const xLabels = data.timestamps.map(ts =>
-        luxon.DateTime.fromISO(ts, { zone: "utc" }).toLocal().toFormat("yyyy-MM-dd HH:mm")
+        luxon.DateTime.fromISO(ts, { zone: "utc" }).toLocal().toJSDate()
       );
 
       myChart = new Chart(document.getElementById("myChart"), {
@@ -258,20 +258,31 @@
 }
 
 
+function loadDataTable() {
+  $('#dataTable').DataTable().destroy();
+  $('#dataTable').DataTable({
+    ajax: {
+      url: "/api/all_data",
+      dataSrc: ""
+    },
+    columns: [
+      { data: "timestamp", render: function(data) {
+          // Convert timestamp from UTC to local time
+          return luxon.DateTime.fromISO(data, { zone: "utc" }).toLocal().toFormat("yyyy-MM-dd HH:mm");
+        }
+      },
+      { data: "mac_address" },
+      { data: "measurement" },
+      { data: "value" }
+    ],
+    order: [[0, "desc"]],  // Sort by latest timestamp first
+    destroy: true
+  });
+}
 
 
-    function loadDataTable() {
-      $('#dataTable').DataTable().destroy();
-      $('#dataTable').DataTable({
-        ajax: "/api/all_data",
-        columns: [
-          { data: "timestamp" },
-          { data: "mac_address" },
-          { data: "measurement" },
-          { data: "value" }
-        ]
-      });
-    }
+
+
 
     document.addEventListener("DOMContentLoaded", function() {
       loadDevices();

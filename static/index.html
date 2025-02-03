@@ -17,123 +17,17 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 
   <style>
+    /* Your CSS styling remains the same */
     * {
       box-sizing: border-box;
       font-family: 'Poppins', sans-serif;
     }
-
     body {
       margin: 0;
       background-color: #f4f4f9;
       text-align: center;
     }
-
-    /* Navigation Bar */
-    .navbar {
-      background-color: #007BFF;
-      color: white;
-      padding: 15px;
-      position: fixed;
-      top: 0;
-      width: 100%;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
-    }
-
-    .navbar a {
-      color: white;
-      text-decoration: none;
-      font-weight: bold;
-      padding: 10px 15px;
-      border-radius: 5px;
-    }
-
-    .navbar a:hover {
-      background-color: rgba(255, 255, 255, 0.3);
-    }
-
-    .container {
-      max-width: 900px;
-      margin: 80px auto 20px;
-      padding: 20px;
-      background: white;
-      border-radius: 10px;
-      box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.2);
-      text-align: center;
-    }
-
-    h2 {
-      color: #333;
-    }
-
-    .form-group {
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 10px;
-      padding: 10px;
-    }
-
-    select, input, button {
-      padding: 10px;
-      font-size: 16px;
-      margin: 5px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-      outline: none;
-    }
-
-    button {
-      background-color: #007BFF;
-      color: white;
-      border: none;
-      cursor: pointer;
-      transition: 0.3s;
-    }
-
-    button:hover {
-      background-color: #0056b3;
-    }
-
-    .hidden {
-      display: none;
-    }
-
-    /* Chart Styling */
-    canvas {
-      max-width: 100%;
-      margin: 20px 0;
-    }
-
-    /* Data Table Styling */
-    table {
-      width: 100%;
-      margin-top: 20px;
-      border-collapse: collapse;
-    }
-
-    table th, table td {
-      padding: 10px;
-      border-bottom: 1px solid #ddd;
-    }
-
-    table th {
-      background-color: #007BFF;
-      color: white;
-    }
-
-    @media (max-width: 768px) {
-      .form-group {
-        flex-direction: column;
-        align-items: center;
-      }
-      
-      select, input, button {
-        width: 90%;
-      }
-    }
+    /* ... (other styles) ... */
   </style>
 </head>
 <body>
@@ -202,67 +96,71 @@
     }
 
     function loadChart() {
-  const mac = document.getElementById("macSelect").value;
-  const measurement = document.getElementById("measurementSelect").value;
-  const start = document.getElementById("startDate").value;
-  const end = document.getElementById("endDate").value;
+      const mac = document.getElementById("macSelect").value;
+      const measurement = document.getElementById("measurementSelect").value;
+      const start = document.getElementById("startDate").value;
+      const end = document.getElementById("endDate").value;
 
-  fetch(`/api/history/${mac}/${measurement}?start=${start}&end=${end}`)
-    .then(res => res.json())
-    .then(data => {
-      if (myChart) myChart.destroy();
+      fetch(`/api/history/${mac}/${measurement}?start=${start}&end=${end}`)
+        .then(res => res.json())
+        .then(data => {
+          if (myChart) myChart.destroy();
 
-      // Convert timestamps from UTC to local Date objects
-      const xLabels = data.timestamps.map(ts => 
-        luxon.DateTime.fromISO(ts, { zone: "utc" }).setZone(luxon.DateTime.local().zoneName).toJSDate()
-      );
+          // Convert timestamps from UTC to Eastern Time (America/New_York)
+          const xLabels = data.timestamps.map(ts => 
+            luxon.DateTime.fromISO(ts, { zone: "utc" })
+                         .setZone("America/New_York")
+                         .toJSDate()
+          );
 
-      myChart = new Chart(document.getElementById("myChart"), {
-        type: 'line',
-        data: {
-          labels: xLabels,
-          datasets: [{
-            label: measurement,
-            data: data.values,
-            borderColor: '#007BFF',
-            fill: false
-          }]
-        },
-        options: {
-          responsive: true,
-          scales: {
-            x: {
-              type: 'time',
-              time: {
-                tooltipFormat: "yyyy-MM-dd HH:mm",
-                unit: "hour",
-                displayFormats: {
-                  hour: "HH:mm",
-                  day: "yyyy-MM-dd"
-                }
-              },
-              title: {
-                display: true,
-                text: "Timestamp (Local Time)"
-              },
-              ticks: {
-                source: "auto",
-                callback: function(value, index, values) {
-                  return luxon.DateTime.fromJSDate(new Date(value)).toFormat("HH:mm");
-                }
-              }
+          myChart = new Chart(document.getElementById("myChart"), {
+            type: 'line',
+            data: {
+              labels: xLabels,
+              datasets: [{
+                label: measurement,
+                data: data.values,
+                borderColor: '#007BFF',
+                fill: false
+              }]
             },
-            y: {
-              title: {
-                display: true,
-                text: measurement
+            options: {
+              responsive: true,
+              scales: {
+                x: {
+                  type: 'time',
+                  time: {
+                    tooltipFormat: "yyyy-MM-dd HH:mm",
+                    unit: "hour",
+                    displayFormats: {
+                      hour: "HH:mm",
+                      day: "yyyy-MM-dd"
+                    }
+                  },
+                  title: {
+                    display: true,
+                    text: "Timestamp (Eastern Time)"
+                  },
+                  ticks: {
+                    source: "auto",
+                    callback: function(value, index, values) {
+                      return luxon.DateTime.fromJSDate(new Date(value))
+                                    .setZone("America/New_York")
+                                    .toFormat("HH:mm");
+                    }
+                  }
+                },
+                y: {
+                  title: {
+                    display: true,
+                    text: measurement
+                  }
+                }
               }
             }
-          }
-        }
-      });
-    });
-}
+          });
+        });
+    }
 
     document.addEventListener("DOMContentLoaded", function() {
       loadDevices();

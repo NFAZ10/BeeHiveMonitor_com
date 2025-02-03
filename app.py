@@ -1,149 +1,96 @@
-import threading
-import paho.mqtt.client as mqtt
-import sqlite3
-from flask import Flask, jsonify, send_from_directory, request
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Beehive Monitor Dashboard</title>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 
-app = Flask(__name__, static_folder="static")
+  <!-- jQuery & DataTables -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
 
-DB_PATH = "beehive.db"
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; }
+    .container { width: 90%; margin: auto; padding: 20px; }
+    canvas { max-width: 100%; }
+    button { padding: 10px; margin: 10px; }
+    table { width: 100%; }
+  </style>
+</head>
+<body>
 
-# ============================
-# 🔹 Initialize Database
-# ============================
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS sensor_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            mac_address TEXT NOT NULL,
-            measurement TEXT NOT NULL,
-            value REAL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-    conn.commit()
-    conn.close()
+  <h1>Beehive Monitor Dashboard</h1>
 
-# ============================
-# 🔹 Insert Sensor Readings
-# ============================
-def insert_reading(mac_address, measurement, value):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""
-        INSERT INTO sensor_data (mac_address, measurement, value)
-        VALUES (?, ?, ?);
-    """, (mac_address, measurement, value))
-    conn.commit()
-    conn.close()
+  <!-- Dropdowns & Date Inputs -->
+  <div>
+    <select id="macSelect"></select>
+    <select id="measurementSelect"></select>
+    <input type="date" id="startDate">
+    <input type="date" id="endDate">
+    <button onclick="loadChart()">Load Chart</button>
+  </div>
 
-# ============================
-# 🔹 MQTT Handler
-# ============================
-def on_mqtt_message(client, userdata, msg):
-    topic_parts = msg.topic.split("/")
-    if len(topic_parts) < 4:
-        return
-    mac_address = topic_parts[2]     # e.g. AA:BB:CC:DD:EE:FF
-    measurement = topic_parts[3]     # e.g. temperature1
+  <!-- Chart -->
+  <canvas id="myChart"></canvas>
 
-    payload_str = msg.payload.decode("utf-8")
-    try:
-        value = float(payload_str)
-    except ValueError:
-        value = None
+  <!-- Data Table -->
+  <h2>All Sensor Data</h2>
+  <table id="dataTable">
+    <thead>
+      <tr><th>Timestamp</th><th>Device</th><th>Measurement</th><th>Value</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-    insert_reading(mac_address, measurement, value)
+  <script>
+    let myChart;
 
-def run_mqtt_client():
-    broker_host = "localhost"  # or your broker IP
-    broker_port = 1883
+    function loadDevices() {
+      fetch("/api/devices").then(res => res.json()).then(data => {
+        const select = document.getElementById("macSelect");
+        select.innerHTML = data.map(mac => `<option value="${mac}">${mac}</option>`).join("");
+      });
+    }
 
-    mqtt_client = mqtt.Client()
-    mqtt_client.on_message = on_mqtt_message
-    mqtt_client.connect(broker_host, broker_port, 60)
-    mqtt_client.subscribe("beehive/data/+/+")  # all devices/measurements
-    mqtt_client.loop_forever()
+    function loadMeasurements() {
+      const mac = document.getElementById("macSelect").value;
+      fetch(`/api/measurements/${mac}`).then(res => res.json()).then(data => {
+        const select = document.getElementById("measurementSelect");
+        select.innerHTML = data.map(m => `<option value="${m}">${m}</option>`).join("");
+      });
+    }
 
-# ============================
-# 🔹 API Endpoints
-# ============================
-@app.route("/api/devices")
-def api_devices():
-    """Return a list of distinct MAC addresses."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT DISTINCT mac_address FROM sensor_data ORDER BY mac_address;")
-    rows = c.fetchall()
-    conn.close()
-    return jsonify([r[0] for r in rows])
+    function loadChart() {
+      const mac = document.getElementById("macSelect").value;
+      const measurement = document.getElementById("measurementSelect").value;
+      const start = document.getElementById("startDate").value;
+      const end = document.getElementById("endDate").value;
 
-@app.route("/api/measurements/<mac>")
-def api_measurements(mac):
-    """Return a list of distinct measurements for the given MAC address."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT DISTINCT measurement FROM sensor_data WHERE mac_address = ? ORDER BY measurement;", (mac,))
-    rows = c.fetchall()
-    conn.close()
-    return jsonify([r[0] for r in rows])
+      fetch(`/api/history/${mac}/${measurement}?start=${start}&end=${end}`)
+        .then(res => res.json())
+        .then(data => {
+          if (myChart) myChart.destroy();
+          myChart = new Chart(document.getElementById("myChart"), {
+            type: 'line',
+            data: { labels: data.timestamps, datasets: [{ label: measurement, data: data.values }] }
+          });
+        });
+    }
 
-@app.route("/api/history/<mac>/<measurement>")
-def api_history(mac, measurement):
-    """
-    Return the last 50 readings for (mac, measurement).
-    Supports optional start & end date filtering.
-    """
-    start_date = request.args.get("start")
-    end_date = request.args.get("end")
+    $(document).ready(function() {
+      $('#dataTable').DataTable({
+        ajax: "/api/all_data",
+        columns: [{ data: "timestamp" }, { data: "mac_address" }, { data: "measurement" }, { data: "value" }]
+      });
+    });
 
-    query = """
-        SELECT timestamp, value FROM sensor_data
-        WHERE mac_address = ? AND measurement = ?
-    """
-    params = [mac, measurement]
+    loadDevices();
+    document.getElementById("macSelect").addEventListener("change", loadMeasurements);
+  </script>
 
-    if start_date and end_date:
-        query += " AND timestamp BETWEEN ? AND ?"
-        params.extend([start_date, end_date])
-
-    query += " ORDER BY timestamp DESC LIMIT 50;"
-
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(query, params)
-    rows = c.fetchall()
-    conn.close()
-
-    rows.reverse()  # Ensure oldest first
-
-    return jsonify({
-        "timestamps": [r[0] for r in rows],
-        "values": [r[1] for r in rows]
-    })
-
-# ============================
-# 🔹 NEW: API for Full Data Table
-# ============================
-@app.route("/api/all_data")
-def api_all_data():
-    """Return all sensor data for the table view."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row  # Return rows as dictionaries
-    c = conn.cursor()
-    c.execute("SELECT timestamp, mac_address, measurement, value FROM sensor_data ORDER BY timestamp DESC LIMIT 500;")
-    rows = c.fetchall()
-    conn.close()
-
-    return jsonify([dict(row) for row in rows])
-
-@app.route("/")
-def index():
-    return send_from_directory(app.static_folder, "index.html")
-
-if __name__ == "__main__":
-    init_db()
-    t = threading.Thread(target=run_mqtt_client, daemon=True)
-    t.start()
-    app.run(host="0.0.0.0", port=8080, debug=False)
+</body>
+</html>

@@ -4,10 +4,11 @@
   <meta charset="UTF-8">
   <title>Beehive Monitor Dashboard</title>
   
-  <!-- Chart.js -->
+  <!-- Chart.js and Luxon Adapter -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
   <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
+  
   <!-- jQuery & DataTables -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
@@ -15,19 +16,125 @@
 
   <!-- Google Fonts & CSS -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-
+  
   <style>
-    /* Your CSS styling remains the same */
     * {
       box-sizing: border-box;
       font-family: 'Poppins', sans-serif;
     }
+
     body {
       margin: 0;
       background-color: #f4f4f9;
       text-align: center;
     }
-    /* ... (other styles) ... */
+
+    /* Navigation Bar */
+    .navbar {
+      background-color: #007BFF;
+      color: white;
+      padding: 15px;
+      position: fixed;
+      top: 0;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .navbar a {
+      color: white;
+      text-decoration: none;
+      font-weight: bold;
+      padding: 10px 15px;
+      border-radius: 5px;
+    }
+
+    .navbar a:hover {
+      background-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 80px auto 20px;
+      padding: 20px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.2);
+      text-align: center;
+    }
+
+    h2 {
+      color: #333;
+    }
+
+    .form-group {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 10px;
+    }
+
+    select, input, button {
+      padding: 10px;
+      font-size: 16px;
+      margin: 5px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      outline: none;
+    }
+
+    button {
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    /* Chart Styling */
+    canvas {
+      max-width: 100%;
+      margin: 20px 0;
+    }
+
+    /* Data Table Styling */
+    table {
+      width: 100%;
+      margin-top: 20px;
+      border-collapse: collapse;
+    }
+
+    table th, table td {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    table th {
+      background-color: #007BFF;
+      color: white;
+    }
+
+    @media (max-width: 768px) {
+      .form-group {
+        flex-direction: column;
+        align-items: center;
+      }
+      
+      select, input, button {
+        width: 90%;
+      }
+    }
   </style>
 </head>
 <body>
@@ -37,7 +144,7 @@
     <div>🐝 Beehive Monitor</div>
     <div>
       <a href="#" onclick="showSection('chartContainer')">Dashboard</a>
-     <!-- <a href="#" onclick="showSection('dataTableContainer')">Data Table</a> -->
+      <!-- <a href="#" onclick="showSection('dataTableContainer')">Data Table</a> -->
     </div>
   </div>
 
@@ -61,7 +168,12 @@
     <h2>All Sensor Data</h2>
     <table id="dataTable">
       <thead>
-        <tr><th>Timestamp</th><th>Device</th><th>Measurement</th><th>Value</th></tr>
+        <tr>
+          <th>Timestamp</th>
+          <th>Device</th>
+          <th>Measurement</th>
+          <th>Value</th>
+        </tr>
       </thead>
       <tbody></tbody>
     </table>
@@ -80,19 +192,23 @@
     }
 
     function loadDevices() {
-      fetch("/api/devices").then(res => res.json()).then(data => {
-        const select = document.getElementById("macSelect");
-        select.innerHTML = data.map(mac => `<option value="${mac}">${mac}</option>`).join("");
-        loadMeasurements();
-      });
+      fetch("/api/devices")
+        .then(res => res.json())
+        .then(data => {
+          const select = document.getElementById("macSelect");
+          select.innerHTML = data.map(mac => `<option value="${mac}">${mac}</option>`).join("");
+          loadMeasurements();
+        });
     }
 
     function loadMeasurements() {
       const mac = document.getElementById("macSelect").value;
-      fetch(`/api/measurements/${mac}`).then(res => res.json()).then(data => {
-        const select = document.getElementById("measurementSelect");
-        select.innerHTML = data.map(m => `<option value="${m}">${m}</option>`).join("");
-      });
+      fetch(`/api/measurements/${mac}`)
+        .then(res => res.json())
+        .then(data => {
+          const select = document.getElementById("measurementSelect");
+          select.innerHTML = data.map(m => `<option value="${m}">${m}</option>`).join("");
+        });
     }
 
     function loadChart() {
@@ -106,17 +222,12 @@
         .then(data => {
           if (myChart) myChart.destroy();
 
-          // Convert timestamps from UTC to Eastern Time (America/New_York)
-          const xLabels = data.timestamps.map(ts => 
-            luxon.DateTime.fromISO(ts, { zone: "utc" })
-                         .setZone("America/New_York")
-                         .toJSDate()
-          );
-
+          // Pass ISO timestamp strings directly to Chart.js.
+          // The Luxon adapter will parse them and display them in Eastern Time.
           myChart = new Chart(document.getElementById("myChart"), {
             type: 'line',
             data: {
-              labels: xLabels,
+              labels: data.timestamps,  // These should be ISO strings (e.g., "2025-02-03T14:00:00Z")
               datasets: [{
                 label: measurement,
                 data: data.values,
@@ -130,6 +241,7 @@
                 x: {
                   type: 'time',
                   time: {
+                    zone: 'America/New_York',  // Display in Eastern Time (EST/EDT)
                     tooltipFormat: "yyyy-MM-dd HH:mm",
                     unit: "hour",
                     displayFormats: {
@@ -140,14 +252,6 @@
                   title: {
                     display: true,
                     text: "Timestamp (Eastern Time)"
-                  },
-                  ticks: {
-                    source: "auto",
-                    callback: function(value, index, values) {
-                      return luxon.DateTime.fromJSDate(new Date(value))
-                                    .setZone("America/New_York")
-                                    .toFormat("HH:mm");
-                    }
                   }
                 },
                 y: {

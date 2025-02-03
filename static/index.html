@@ -211,7 +211,7 @@ c
         .then(res => res.json())
         .then(data => {
           const xLabels = data.timestamps.map(ts => 
-        luxon.DateTime.fromISO(ts, { zone: "utc" }).toLocal().toJSDate();
+        luxon.DateTime.fromISO(ts, { zone: "utc" }).toLocal().toJSDate());
 
           if (myChart) myChart.destroy();
           myChart = new Chart(document.getElementById("myChart"), {

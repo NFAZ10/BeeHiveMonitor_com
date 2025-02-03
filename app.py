@@ -130,7 +130,7 @@ def api_all_data():
 
 @app.route("/api/all_data")
 def api_all_data():
-    """Return all sensor data for the table view."""
+    """Return all sensor data for the data table view."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
@@ -138,9 +138,14 @@ def api_all_data():
     rows = c.fetchall()
     conn.close()
 
-    # Convert timestamps to ISO format
+    # Convert SQLite rows to dictionaries, handling null values
     data = [
-        {"timestamp": row["timestamp"], "mac_address": row["mac_address"], "measurement": row["measurement"], "value": row["value"]}
+        {
+            "timestamp": row["timestamp"] if row["timestamp"] else "N/A",
+            "mac_address": row["mac_address"] if row["mac_address"] else "Unknown",
+            "measurement": row["measurement"] if row["measurement"] else "Unknown",
+            "value": row["value"] if row["value"] is not None else "N/A"
+        }
         for row in rows
     ]
     return jsonify(data)

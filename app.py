@@ -128,12 +128,19 @@ def api_all_data():
 
     return jsonify([dict(row) for row in rows])
 
-@app.route("/")
-def index():
-    return send_from_directory(app.static_folder, "index.html")
+@app.route("/api/all_data")
+def api_all_data():
+    """Return all sensor data for the table view."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT timestamp, mac_address, measurement, value FROM sensor_data ORDER BY timestamp DESC LIMIT 500;")
+    rows = c.fetchall()
+    conn.close()
 
-if __name__ == "__main__":
-    init_db()
-    t = threading.Thread(target=run_mqtt_client, daemon=True)
-    t.start()
-    app.run(host="0.0.0.0", port=8080, debug=False)
+    # Convert timestamps to ISO format
+    data = [
+        {"timestamp": row["timestamp"], "mac_address": row["mac_address"], "measurement": row["measurement"], "value": row["value"]}
+        for row in rows
+    ]
+    return jsonify(data)

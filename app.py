@@ -128,23 +128,42 @@ def api_all_data():
 
     return jsonify([dict(row) for row in rows])
 
-@app.route("/api/all_data")
-def api_all_data():
-    """Return all sensor data for the data table view."""
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row  # Ensures data is structured correctly
-        c = conn.cursor()
-        c.execute("SELECT timestamp, mac_address, measurement, value FROM sensor_data ORDER BY timestamp DESC LIMIT 500;")
-        rows = c.fetchall()
-        conn.close()
+function loadDataTable() {
+  console.log("Initializing DataTable...");
 
-        # Convert to JSON format, ensuring it's always an array
-        data = [dict(row) for row in rows]
-        print("API returning:", data[:5])  # Debug: Print first 5 records
-
-        return jsonify(data)
-
-    except Exception as e:
-        print("Error in /api/all_data:", str(e))  # Print error to Flask logs
-        return jsonify({"error": "Internal Server Error", "details": str(e)}), 500
+  $('#dataTable').DataTable().destroy();
+  $('#dataTable').DataTable({
+    ajax: {
+      url: "/api/all_data",
+      dataType: "json",
+      dataSrc: function(json) {
+        console.log("DataTables received API response:", json); // Debugging
+        if (!Array.isArray(json)) {
+          console.error("DataTables error: API response is not an array", json);
+          return [];
+        }
+        return json;
+      },
+      error: function(xhr, status, error) {
+        console.error("DataTables AJAX Error:", error, xhr.responseText);
+      }
+    },
+    columns: [
+      { data: "timestamp", render: function(data) {
+          return data ? luxon.DateTime.fromISO(data, { zone: "utc" })
+            .setZone(luxon.DateTime.local().zoneName)
+            .toFormat("yyyy-MM-dd HH:mm") : "N/A";
+        }
+      },
+      { data: "mac_address" },
+      { data: "measurement" },
+      { data: "value", render: function(data) {
+          return data !== null ? data : "N/A";
+        }
+      }
+    ],
+    order: [[0, "desc"]],
+    processing: true,
+    destroy: true
+  });
+}
